@@ -88,6 +88,7 @@ BulkPropagatorJob::BulkPropagatorJob(OwncloudPropagator *propagator,
     : PropagatorJob(propagator)
     , _items(items)
 {
+    _uploadFileParameters.reserve(_items.size());
 }
 
 bool BulkPropagatorJob::scheduleSelfOrChild()
@@ -97,16 +98,19 @@ bool BulkPropagatorJob::scheduleSelfOrChild()
     }
 
     _state = Running;
-    auto currentItem = _items.front();
-    _items.pop_front();
-    QMetaObject::invokeMethod(this, [this, currentItem] () {
-        UploadFileInfo fileToUpload;
-        fileToUpload._file = currentItem->_file;
-        fileToUpload._size = currentItem->_size;
-        fileToUpload._path = propagator()->fullLocalPath(fileToUpload._file);
-        startUploadFile(currentItem, fileToUpload);
-    }); // We could be in a different thread (neon jobs)
-    return _items.empty();
+    for(int i = 0; i < 100 && !_items.empty(); ++i) {
+        auto currentItem = _items.front();
+        _items.pop_front();
+        QMetaObject::invokeMethod(this, [this, currentItem] () {
+            UploadFileInfo fileToUpload;
+            fileToUpload._file = currentItem->_file;
+            fileToUpload._size = currentItem->_size;
+            fileToUpload._path = propagator()->fullLocalPath(fileToUpload._file);
+            startUploadFile(currentItem, fileToUpload);
+        }); // We could be in a different thread (neon jobs)
+    }
+
+    return _items.empty() && _uploadFileParameters.empty();
 }
 
 PropagatorJob::JobParallelism BulkPropagatorJob::parallelism()
@@ -189,34 +193,49 @@ void BulkPropagatorJob::doStartUpload(SyncFileItemPtr item,
     currentHeaders[checkSumHeaderC] = transmissionChecksumHeader;
 
     const QString fileName = fileToUpload._path;
-    auto device = std::make_unique<UploadDevice>(
-            fileName, 0, fileSize, &propagator()->_bandwidthManager);
-    if (!device->open(QIODevice::ReadOnly)) {
-        qCWarning(lcBulkPropagatorJob) << "Could not prepare upload device: " << device->errorString();
 
-        // If the file is currently locked, we want to retry the sync
-        // when it becomes available again.
-        if (FileSystem::isFileLocked(fileName)) {
-            emit propagator()->seenLockedFile(fileName);
-        }
-        // Soft error because this is likely caused by the user modifying his files while syncing
-        abortWithError(item, SyncFileItem::SoftError, device->errorString());
-        return;
+    UploadFileParameters newUploadFile{propagator()->account(), item, fileToUpload,
+                propagator()->fullRemotePath(path), fileName,
+                fileSize, currentHeaders};
+
+    _uploadFileParameters.push_back(std::move(newUploadFile));
+
+    if (_items.empty() && _checksumsJobs.empty()) {
+        triggerUpload();
     }
+}
 
-    // job takes ownership of device via a QScopedPointer. Job deletes itself when finishing
-    auto devicePtr = device.get(); // for connections later
-    auto job = std::make_unique<PutMultiFileJob>(propagator()->account(), propagator()->fullRemotePath(path), std::move(device), currentHeaders, 0, this);
-    connect(job.get(), &PutMultiFileJob::finishedSignal, this, [this, item, fileToUpload] () {
-        slotPutFinished(item, fileToUpload);
-    });
-    connect(job.get(), &PutMultiFileJob::uploadProgress, this, &BulkPropagatorJob::slotUploadProgress);
-    connect(job.get(), &PutMultiFileJob::uploadProgress, devicePtr, &UploadDevice::slotJobUploadProgress);
-    connect(job.get(), &QObject::destroyed, this, &BulkPropagatorJob::slotJobDestroyed);
-    adjustLastJobTimeout(job.get(), fileSize);
-    auto jobCopy = job.get();
-    _jobs.append(job.release());
-    jobCopy->start();
+void BulkPropagatorJob::triggerUpload()
+{
+    for(auto &oneFile : _uploadFileParameters) {
+        // job takes ownership of device via a QScopedPointer. Job deletes itself when finishing
+        auto device = std::make_unique<UploadDevice>(
+                oneFile._localPath, 0, oneFile._fileSize, &propagator()->_bandwidthManager);
+        if (!device->open(QIODevice::ReadOnly)) {
+            qCWarning(lcBulkPropagatorJob) << "Could not prepare upload device: " << device->errorString();
+
+            // If the file is currently locked, we want to retry the sync
+            // when it becomes available again.
+            if (FileSystem::isFileLocked(oneFile._localPath)) {
+                emit propagator()->seenLockedFile(oneFile._localPath);
+            }
+            // Soft error because this is likely caused by the user modifying his files while syncing
+            abortWithError(oneFile._item, SyncFileItem::SoftError, device->errorString());
+            return;
+        }
+
+        auto job = std::make_unique<PutMultiFileJob>(propagator()->account(), oneFile._remotePath, std::move(device), oneFile._headers, 0, this);
+        connect(job.get(), &PutMultiFileJob::finishedSignal, this, [this, &oneFile] () {
+            slotPutFinished(oneFile._item, oneFile._fileToUpload);
+        });
+        connect(job.get(), &PutMultiFileJob::uploadProgress, this, &BulkPropagatorJob::slotUploadProgress);
+        connect(job.get(), &PutMultiFileJob::uploadProgress, device.get(), &UploadDevice::slotJobUploadProgress);
+        connect(job.get(), &QObject::destroyed, this, &BulkPropagatorJob::slotJobDestroyed);
+        adjustLastJobTimeout(job.get(), oneFile._fileSize);
+        auto jobCopy = job.get();
+        _jobs.append(job.release());
+        jobCopy->start();
+    }
 }
 
 void BulkPropagatorJob::slotComputeContentChecksum(SyncFileItemPtr item,
@@ -260,7 +279,13 @@ void BulkPropagatorJob::slotComputeContentChecksum(SyncFileItemPtr item,
     });
     connect(computeChecksum.get(), &ComputeChecksum::done,
             computeChecksum.get(), &QObject::deleteLater);
-    computeChecksum.release()->start(fileToUpload._path);
+    connect(computeChecksum.get(), &QObject::destroyed, this, [this] (QObject *deletedJob) {
+        _checksumsJobs.erase(std::remove(_checksumsJobs.begin(), _checksumsJobs.end(), deletedJob), _checksumsJobs.end());
+    });
+
+    auto jobCopy = computeChecksum.get();
+    _checksumsJobs.append(computeChecksum.release());
+    jobCopy->start(fileToUpload._path);
 }
 
 void BulkPropagatorJob::slotComputeTransmissionChecksum(SyncFileItemPtr item,

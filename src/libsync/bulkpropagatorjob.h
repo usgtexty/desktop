@@ -29,6 +29,8 @@ namespace OCC {
 
 Q_DECLARE_LOGGING_CATEGORY(lcBulkPropagatorJob)
 
+class ComputeChecksum;
+
 class BulkPropagatorJob : public PropagatorJob
 {
     Q_OBJECT
@@ -44,6 +46,17 @@ class BulkPropagatorJob : public PropagatorJob
       QString _file; /// I'm still unsure if I should use a SyncFilePtr here.
       QString _path; /// the full path on disk.
       qint64 _size;
+    };
+
+    struct UploadFileParameters
+    {
+        AccountPtr _account;
+        SyncFileItemPtr _item;
+        UploadFileInfo _fileToUpload;
+        QString _remotePath;
+        QString _localPath;
+        qint64 _fileSize;
+        QMap<QByteArray, QByteArray> _headers;
     };
 
 public:
@@ -148,9 +161,15 @@ private:
     void handleJobDoneErrors(SyncFileItemPtr item,
                              SyncFileItem::Status status);
 
+    void triggerUpload();
+
     std::deque<SyncFileItemPtr> _items;
 
     QVector<AbstractNetworkJob *> _jobs; /// network jobs that are currently in transit
+
+    QVector<ComputeChecksum *> _checksumsJobs;
+
+    std::vector<UploadFileParameters> _uploadFileParameters;
 
     SyncFileItem::Status _finalStatus = SyncFileItem::Status::NoStatus;
 };

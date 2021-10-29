@@ -41,6 +41,18 @@ bool itemDidCompleteSuccessfullyWithExpectedRank(const ItemCompletedSpy &spy, co
     return false;
 }
 
+int itemSuccessfullyCompletedGetRank(const ItemCompletedSpy &spy, const QString &path)
+{
+    auto itItem = std::find_if(spy.begin(), spy.end(), [&path] (auto currentItem) {
+        auto item = currentItem[0].template value<OCC::SyncFileItemPtr>();
+        return item->destination() == path;
+    });
+    if (itItem != spy.end()) {
+        return itItem - spy.begin();
+    }
+    return -1;
+}
+
 class TestSyncEngine : public QObject
 {
     Q_OBJECT
@@ -106,12 +118,18 @@ private slots:
         fakeFolder.syncOnce();
         QVERIFY(itemDidCompleteSuccessfullyWithExpectedRank(completeSpy, "Y", 0));
         QVERIFY(itemDidCompleteSuccessfullyWithExpectedRank(completeSpy, "Z", 1));
-        QVERIFY(itemDidCompleteSuccessfullyWithExpectedRank(completeSpy, "Y/d0", 2));
-        QVERIFY(itemDidCompleteSuccessfullyWithExpectedRank(completeSpy, "Z/d0", 3));
-        QVERIFY(itemDidCompleteSuccessfullyWithExpectedRank(completeSpy, "A/a0", 4));
-        QVERIFY(itemDidCompleteSuccessfullyWithExpectedRank(completeSpy, "B/b0", 5));
-        QVERIFY(itemDidCompleteSuccessfullyWithExpectedRank(completeSpy, "r0", 6));
-        QVERIFY(itemDidCompleteSuccessfullyWithExpectedRank(completeSpy, "r1", 7));
+        QVERIFY(itemDidCompleteSuccessfully(completeSpy, "Y/d0"));
+        QVERIFY(itemSuccessfullyCompletedGetRank(completeSpy, "Y/d0") > 1);
+        QVERIFY(itemDidCompleteSuccessfully(completeSpy, "Z/d0"));
+        QVERIFY(itemSuccessfullyCompletedGetRank(completeSpy, "Z/d0") > 1);
+        QVERIFY(itemDidCompleteSuccessfully(completeSpy, "A/a0"));
+        QVERIFY(itemSuccessfullyCompletedGetRank(completeSpy, "A/a0") > 1);
+        QVERIFY(itemDidCompleteSuccessfully(completeSpy, "B/b0"));
+        QVERIFY(itemSuccessfullyCompletedGetRank(completeSpy, "B/b0") > 1);
+        QVERIFY(itemDidCompleteSuccessfully(completeSpy, "r0"));
+        QVERIFY(itemSuccessfullyCompletedGetRank(completeSpy, "r0") > 1);
+        QVERIFY(itemDidCompleteSuccessfully(completeSpy, "r1"));
+        QVERIFY(itemSuccessfullyCompletedGetRank(completeSpy, "r1") > 1);
         QCOMPARE(fakeFolder.currentLocalState(), fakeFolder.currentRemoteState());
     }
 
