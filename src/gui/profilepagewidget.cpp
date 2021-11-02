@@ -18,6 +18,7 @@ void ProfilePageWidget::setProfileConnector(
     _profileConnector->fetchHovercard(userId);
     connect(
         _profileConnector.get(), &OcsProfileConnector::hovercardFetched, this, &ProfilePageWidget::onHovercardFetched);
+    connect(_profileConnector.get(), &OcsProfileConnector::error, this, &ProfilePageWidget::onHovercardFetched);
     connect(_profileConnector.get(), &OcsProfileConnector::iconLoaded, this, &ProfilePageWidget::onIconLoaded);
 }
 
@@ -29,9 +30,8 @@ void ProfilePageWidget::resetLayout()
     _profilePageButtonIcons.clear();
 }
 
-void ProfilePageWidget::createLayout()
+void ProfilePageWidget::displayHovercardActions(const std::vector<HovercardAction> &hovercardActions)
 {
-    const auto hovercardActions = _profileConnector->hovercard()._actions;
     _profilePageButtonIcons.reserve(hovercardActions.size());
     for (const auto &hovercardAction : hovercardActions) {
         const auto button = new QPushButton;
@@ -57,6 +57,23 @@ void ProfilePageWidget::createLayout()
         rowLayout->addWidget(button);
         _mainLayout->addWidget(row);
     }
+}
+
+void ProfilePageWidget::displayNoHovercardActions()
+{
+    const auto label = new QLabel;
+    label->setText(tr("No profile actions available!"));
+    _mainLayout->addWidget(label);
+}
+
+void ProfilePageWidget::createLayout()
+{
+    const auto hovercardActions = _profileConnector->hovercard()._actions;
+    if (hovercardActions.size() == 0) {
+        displayNoHovercardActions();
+        return;
+    }
+    displayHovercardActions(hovercardActions);
 }
 
 void ProfilePageWidget::recreateLayout()

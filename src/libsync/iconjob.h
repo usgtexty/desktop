@@ -37,6 +37,7 @@ public:
 
 signals:
     void jobFinished(const QByteArray &iconData);
+    void error(QNetworkReply::NetworkError errorType);
 
 private slots:
     void finished(QNetworkReply *reply);

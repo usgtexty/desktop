@@ -36,6 +36,7 @@ public:
     Hovercard hovercard() const;
 
 signals:
+    void error();
     void hovercardFetched();
     void iconLoaded(const std::size_t hovercardActionIndex);
 

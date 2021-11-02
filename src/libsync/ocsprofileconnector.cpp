@@ -1,8 +1,10 @@
 #include "ocsprofileconnector.h"
+#include "accountfwd.h"
 #include "common/result.h"
 #include "networkjobs.h"
 #include "iconjob.h"
 #include "theme.h"
+#include "account.h"
 
 #include <QJsonObject>
 #include <QJsonDocument>
@@ -12,6 +14,7 @@
 #include <QPainter>
 #include <QImage>
 #include <QSvgRenderer>
+#include <qnetworkreply.h>
 #include <qpixmap.h>
 
 namespace {
@@ -82,6 +85,12 @@ OcsProfileConnector::OcsProfileConnector(AccountPtr account, QObject *parent)
 
 void OcsProfileConnector::fetchHovercard(const QString &userId)
 {
+    if (_account->serverVersionInt() < Account::makeServerVersion(23, 0, 0)) {
+        qInfo(lcOcsProfileConnector) << "Server version" << _account->serverVersion()
+                                     << "does not support profile page";
+        emit error();
+        return;
+    }
     const QString url = QStringLiteral("/ocs/v2.php/hovercard/v1/%1").arg(userId);
     auto job = new JsonApiJob(_account, url, this);
     connect(job, &JsonApiJob::jsonReceived, this, &OcsProfileConnector::onHovercardFetched);
@@ -130,6 +139,9 @@ void OcsProfileConnector::startFetchIconJob(const std::size_t hovercardActionInd
     const auto iconJob = new IconJob{hovercardAction._iconUrl, this};
     connect(iconJob, &IconJob::jobFinished, [this, hovercardActionIndex](const QByteArray &iconData) {
         loadHovercardActionIcon(hovercardActionIndex, iconData);
+    });
+    connect(iconJob, &IconJob::error, this, [](QNetworkReply::NetworkError errorType) {
+        qCWarning(lcOcsProfileConnector) << "Could not fetch icon:" << errorType;
     });
 }
 

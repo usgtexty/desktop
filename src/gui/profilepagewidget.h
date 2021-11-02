@@ -24,6 +24,8 @@ private:
     void recreateLayout();
     void resetLayout();
     void createLayout();
+    void displayHovercardActions(const std::vector<HovercardAction> &hovercardActions);
+    void displayNoHovercardActions();
 
     std::unique_ptr<OcsProfileConnector> _profileConnector;
 

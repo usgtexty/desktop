@@ -34,7 +34,9 @@ void IconJob::finished(QNetworkReply *reply)
     reply->deleteLater();
     deleteLater();
 
-    if (reply->error() != QNetworkReply::NoError) {
+    const auto networkError = reply->error();
+    if (networkError != QNetworkReply::NoError) {
+        emit error(networkError);
         return;
     }
 
