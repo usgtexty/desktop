@@ -36,7 +36,7 @@ public:
     explicit IconJob(const QUrl &url, QObject *parent = nullptr);
 
 signals:
-    void jobFinished(const QByteArray &iconData);
+    void jobFinished(QByteArray iconData);
     void error(QNetworkReply::NetworkError errorType);
 
 private slots:

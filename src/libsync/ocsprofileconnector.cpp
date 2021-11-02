@@ -14,16 +14,17 @@
 #include <QPainter>
 #include <QImage>
 #include <QSvgRenderer>
-#include <qnetworkreply.h>
-#include <qpixmap.h>
+#include <QNetworkReply>
+#include <QPixmap>
 
 namespace {
 Q_LOGGING_CATEGORY(lcOcsProfileConnector, "nextcloud.gui.ocsprofileconnector", QtInfoMsg)
 
 OCC::HovercardAction jsonToAction(const QJsonObject &jsonActionObject)
 {
-    return {jsonActionObject.value("title").toString("No title"), jsonActionObject.value("icon").toString("no-icon"),
-        jsonActionObject.value("hyperlink").toString("no-link")};
+    return {jsonActionObject.value(QStringLiteral("title")).toString(QStringLiteral("No title")),
+        jsonActionObject.value(QStringLiteral("icon")).toString(QStringLiteral("no-icon")),
+        jsonActionObject.value(QStringLiteral("hyperlink")).toString(QStringLiteral("no-link"))};
 }
 
 OCC::Hovercard jsonToHovercard(const QJsonArray &jsonDataArray)
@@ -43,18 +44,18 @@ OCC::Hovercard jsonToHovercard(const QJsonArray &jsonDataArray)
 OCC::Optional<QPixmap> createPixmapFromSvgData(const QByteArray &iconData)
 {
     QSvgRenderer svgRenderer;
-    if (svgRenderer.load(iconData)) {
-        QSize imageSize{16, 16};
-        if (OCC::Theme::isHidpi()) {
-            imageSize = QSize{32, 32};
-        }
-        QImage scaledSvg(imageSize, QImage::Format_ARGB32);
-        scaledSvg.fill("transparent");
-        QPainter svgPainter{&scaledSvg};
-        svgRenderer.render(&svgPainter);
-        return QPixmap::fromImage(scaledSvg);
+    if (!svgRenderer.load(iconData)) {
+        return {};
     }
-    return {};
+    QSize imageSize{16, 16};
+    if (OCC::Theme::isHidpi()) {
+        imageSize = QSize{32, 32};
+    }
+    QImage scaledSvg(imageSize, QImage::Format_ARGB32);
+    scaledSvg.fill("transparent");
+    QPainter svgPainter{&scaledSvg};
+    svgRenderer.render(&svgPainter);
+    return QPixmap::fromImage(scaledSvg);
 }
 
 OCC::Optional<QPixmap> iconDataToPixmap(const QByteArray iconData)
@@ -137,9 +138,8 @@ void OcsProfileConnector::startFetchIconJob(const std::size_t hovercardActionInd
 {
     const auto hovercardAction = _currentHovercard._actions[hovercardActionIndex];
     const auto iconJob = new IconJob{hovercardAction._iconUrl, this};
-    connect(iconJob, &IconJob::jobFinished, [this, hovercardActionIndex](const QByteArray &iconData) {
-        loadHovercardActionIcon(hovercardActionIndex, iconData);
-    });
+    connect(iconJob, &IconJob::jobFinished,
+        [this, hovercardActionIndex](QByteArray iconData) { loadHovercardActionIcon(hovercardActionIndex, iconData); });
     connect(iconJob, &IconJob::error, this, [](QNetworkReply::NetworkError errorType) {
         qCWarning(lcOcsProfileConnector) << "Could not fetch icon:" << errorType;
     });

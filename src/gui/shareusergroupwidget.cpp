@@ -38,9 +38,9 @@
 #include <QFileInfo>
 #include <QAbstractProxyModel>
 #include <QCompleter>
-#include <qboxlayout.h>
-#include <qicon.h>
-#include <qlayout.h>
+#include <QBoxLayout>
+#include <QIcon>
+#include <QLayout>
 #include <QPropertyAnimation>
 #include <QMenu>
 #include <QAction>
@@ -52,10 +52,10 @@
 #include <QPainter>
 #include <QListWidget>
 #include <QSvgRenderer>
+#include <QPushButton>
 
 #include <cstring>
 #include <qobject.h>
-#include <qpushbutton.h>
 
 namespace {
 const char *passwordIsSetPlaceholder = "●●●●●●●●";

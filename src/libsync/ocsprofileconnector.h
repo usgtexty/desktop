@@ -1,6 +1,7 @@
 #pragma once
 
 #include "accountfwd.h"
+#include "owncloudlib.h"
 
 #include <QObject>
 #include <QPixmap>
@@ -9,7 +10,7 @@
 
 namespace OCC {
 
-struct HovercardAction
+struct OWNCLOUDSYNC_EXPORT HovercardAction
 {
 public:
     HovercardAction();
@@ -21,7 +22,7 @@ public:
     QUrl _link;
 };
 
-struct Hovercard
+struct OWNCLOUDSYNC_EXPORT Hovercard
 {
     std::vector<HovercardAction> _actions;
 };
