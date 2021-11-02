@@ -640,7 +640,7 @@ ShareUserLine::ShareUserLine(AccountPtr account,
         _permissionReshare->setVisible(false);
     }
 
-    auto avatarEventFilter = new AvatarEventFilter(_ui->avatar);
+    const auto avatarEventFilter = new AvatarEventFilter(_ui->avatar);
     connect(avatarEventFilter, &AvatarEventFilter::clicked, this, &ShareUserLine::onAvatarClicked);
     _ui->avatar->installEventFilter(avatarEventFilter);
 

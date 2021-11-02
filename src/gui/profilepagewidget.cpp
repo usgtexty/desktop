@@ -15,11 +15,11 @@ void ProfilePageWidget::setProfileConnector(
     std::unique_ptr<OcsProfileConnector> profileConnector, const QString &userId)
 {
     _profileConnector = std::move(profileConnector);
-    _profileConnector->fetchHovercard(userId);
     connect(
         _profileConnector.get(), &OcsProfileConnector::hovercardFetched, this, &ProfilePageWidget::onHovercardFetched);
     connect(_profileConnector.get(), &OcsProfileConnector::error, this, &ProfilePageWidget::onHovercardFetched);
     connect(_profileConnector.get(), &OcsProfileConnector::iconLoaded, this, &ProfilePageWidget::onIconLoaded);
+    _profileConnector->fetchHovercard(userId);
 }
 
 void ProfilePageWidget::resetLayout()
@@ -42,7 +42,7 @@ void ProfilePageWidget::displayHovercardActions(const std::vector<HovercardActio
         const auto link = hovercardAction._link;
         connect(button, &QPushButton::clicked, button, [link] { Utility::openBrowser(link); });
 
-        auto icon = new QLabel;
+        const auto icon = new QLabel;
         QSizePolicy sizePolicy;
         sizePolicy.setHorizontalPolicy(QSizePolicy::Policy::Minimum);
         sizePolicy.setVerticalPolicy(QSizePolicy::Policy::Minimum);
@@ -92,7 +92,7 @@ void ProfilePageWidget::onIconLoaded(const std::size_t &hovercardActionIndex)
     if (hovercardActionIndex >= _profilePageButtonIcons.size()) {
         return;
     }
-    auto icon = _profilePageButtonIcons[hovercardActionIndex];
+    const auto icon = _profilePageButtonIcons[hovercardActionIndex];
     const auto hovercardAction = _profileConnector->hovercard()._actions[hovercardActionIndex];
     icon->setPixmap(hovercardAction._icon);
 }

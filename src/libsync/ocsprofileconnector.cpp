@@ -92,7 +92,7 @@ void OcsProfileConnector::fetchHovercard(const QString &userId)
         return;
     }
     const QString url = QStringLiteral("/ocs/v2.php/hovercard/v1/%1").arg(userId);
-    auto job = new JsonApiJob(_account, url, this);
+    const auto job = new JsonApiJob(_account, url, this);
     connect(job, &JsonApiJob::jsonReceived, this, &OcsProfileConnector::onHovercardFetched);
     job->start();
 }
