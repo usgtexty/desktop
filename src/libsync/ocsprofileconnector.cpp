@@ -16,15 +16,22 @@
 #include <QSvgRenderer>
 #include <QNetworkReply>
 #include <QPixmap>
+#include <QPixmapCache>
 
 namespace {
 Q_LOGGING_CATEGORY(lcOcsProfileConnector, "nextcloud.gui.ocsprofileconnector", QtInfoMsg)
 
 OCC::HovercardAction jsonToAction(const QJsonObject &jsonActionObject)
 {
-    return {jsonActionObject.value(QStringLiteral("title")).toString(QStringLiteral("No title")),
-        jsonActionObject.value(QStringLiteral("icon")).toString(QStringLiteral("no-icon")),
+    const auto iconUrl = jsonActionObject.value(QStringLiteral("icon")).toString(QStringLiteral("no-icon"));
+    QPixmap iconPixmap;
+    OCC::HovercardAction hovercardAction{
+        jsonActionObject.value(QStringLiteral("title")).toString(QStringLiteral("No title")), iconUrl,
         jsonActionObject.value(QStringLiteral("hyperlink")).toString(QStringLiteral("no-link"))};
+    if (QPixmapCache::find(iconUrl, &iconPixmap)) {
+        hovercardAction._icon = iconPixmap;
+    }
+    return hovercardAction;
 }
 
 OCC::Hovercard jsonToHovercard(const QJsonArray &jsonDataArray)
@@ -116,6 +123,7 @@ void OcsProfileConnector::onHovercardFetched(const QJsonDocument &json, int stat
 void OcsProfileConnector::setHovercardActionIcon(const std::size_t index, const QPixmap &pixmap)
 {
     auto &hovercardAction = _currentHovercard._actions[index];
+    QPixmapCache::insert(hovercardAction._iconUrl.toString(), pixmap);
     hovercardAction._icon = pixmap;
     emit iconLoaded(index);
 }

@@ -47,6 +47,7 @@ void ProfilePageWidget::displayHovercardActions(const std::vector<HovercardActio
         sizePolicy.setHorizontalPolicy(QSizePolicy::Policy::Minimum);
         sizePolicy.setVerticalPolicy(QSizePolicy::Policy::Minimum);
         icon->setSizePolicy(sizePolicy);
+        icon->setPixmap(hovercardAction._icon);
 
         _profilePageButtonIcons.push_back(icon);
 
