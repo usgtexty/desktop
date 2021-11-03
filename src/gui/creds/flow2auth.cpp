@@ -136,7 +136,9 @@ void Flow2Auth::fetchNewToken(const TokenAction action)
         if (Theme::instance()->loginWithSystemUserName()) {
             const auto userName = Utility::getCurrentUserName();
             if (!userName.isEmpty()) {
-                _loginUrl.addQueryItem(QStringLiteral("user"), userName);
+                auto query = QUrlQuery(_loginUrl);
+                query.addQueryItem(QStringLiteral("user"), userName);
+                _loginUrl.setQuery(query);
             }
         }
 
