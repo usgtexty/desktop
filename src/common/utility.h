@@ -241,6 +241,11 @@ namespace Utility {
      */
     OCSYNC_EXPORT bool isPathWindowsDrivePartitionRoot(const QString &path);
 
+    /**
+     * @brief Retrieves current logged-in user name from the OS
+     */
+    OCSYNC_EXPORT QString getCurrentUserName();
+
 #ifdef Q_OS_WIN
     OCSYNC_EXPORT bool registryKeyExists(HKEY hRootKey, const QString &subKey);
     OCSYNC_EXPORT QVariant registryGetKeyValue(HKEY hRootKey, const QString &subKey, const QString &valueName);
@@ -256,8 +261,6 @@ namespace Utility {
     OCSYNC_EXPORT void UnixTimeToLargeIntegerFiletime(time_t t, LARGE_INTEGER *hundredNSecs);
 
     OCSYNC_EXPORT QString formatWinError(long error);
-
-    OCSYNC_EXPORT QString getCurrentUserName();
 
     class OCSYNC_EXPORT NtfsPermissionLookupRAII
     {

@@ -259,7 +259,7 @@ public:
      *
      * When true, the Web login form will be pre-filled with system user name
      */
-    virtual bool loginWithSystemUserName() const;
+    bool loginWithSystemUserName() const;
 
     /**
      * This is only usefull when previous version had a different overrideServerUrl
