@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ocsprofileconnector.h"
-
 #include <QBoxLayout>
 #include <QLabel>
 
@@ -9,11 +7,15 @@
 
 namespace OCC {
 
+class OcsProfileConnector;
+struct HovercardAction;
+
 class ProfilePageWidget : public QWidget
 {
     Q_OBJECT
 public:
     explicit ProfilePageWidget(QWidget *parent = nullptr);
+    ~ProfilePageWidget() override;
 
     void setProfileConnector(std::unique_ptr<OcsProfileConnector> profileConnector, const QString &userId);
 

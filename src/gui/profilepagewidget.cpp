@@ -1,6 +1,7 @@
 #include "profilepagewidget.h"
 #include "guiutility.h"
 #include "theme.h"
+#include "ocsprofileconnector.h"
 
 #include <QPushButton>
 
@@ -10,6 +11,7 @@ ProfilePageWidget::ProfilePageWidget(QWidget *parent)
     : QWidget(parent)
 {
 }
+ProfilePageWidget::~ProfilePageWidget() = default;
 
 void ProfilePageWidget::setProfileConnector(
     std::unique_ptr<OcsProfileConnector> profileConnector, const QString &userId)

@@ -161,7 +161,7 @@ void OcsProfileConnector::fetchIcons()
     }
 }
 
-Hovercard OcsProfileConnector::hovercard() const
+const Hovercard &OcsProfileConnector::hovercard() const
 {
     return _currentHovercard;
 }
