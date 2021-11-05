@@ -55,6 +55,7 @@ public:
 
 signals:
     void clicked();
+    void contextMenu(const QPoint &globalPosition);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -182,7 +183,7 @@ private slots:
 
     void slotConfirmPasswordClicked();
 
-    void onAvatarClicked();
+    void onAvatarContextMenu(const QPoint &globalPosition);
 
 private:
     void displayPermissions();
@@ -211,6 +212,8 @@ private:
   AccountPtr _account;
   QSharedPointer<UserGroupShare> _share;
   bool _isFile;
+
+  ProfilePageMenu _profilePageMenu;
 
   // _permissionEdit is a checkbox
   QAction *_permissionReshare;

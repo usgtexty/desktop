@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>899</width>
-    <height>302</height>
+    <height>310</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -110,9 +110,6 @@
       </widget>
      </item>
     </layout>
-   </item>
-   <item>
-    <widget class="OCC::ProfilePageWidget" name="profilePageWidget" native="true"/>
    </item>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_3">
@@ -849,12 +846,6 @@
    <class>OCC::ElidedLabel</class>
    <extends>QLabel</extends>
    <header>elidedlabel.h</header>
-  </customwidget>
-  <customwidget>
-   <class>OCC::ProfilePageWidget</class>
-   <extends>QWidget</extends>
-   <header>profilepagewidget.h</header>
-   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources>

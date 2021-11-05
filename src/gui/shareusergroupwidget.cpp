@@ -53,9 +53,9 @@
 #include <QListWidget>
 #include <QSvgRenderer>
 #include <QPushButton>
+#include <QContextMenuEvent>
 
 #include <cstring>
-#include <qobject.h>
 
 namespace {
 const char *passwordIsSetPlaceholder = "●●●●●●●●";
@@ -72,8 +72,9 @@ AvatarEventFilter::AvatarEventFilter(QObject *parent)
 
 bool AvatarEventFilter::eventFilter(QObject *obj, QEvent *event)
 {
-    if (event->type() == QEvent::MouseButtonRelease) {
-        emit clicked();
+    if (event->type() == QEvent::ContextMenu) {
+        const auto contextMenuEvent = dynamic_cast<QContextMenuEvent *>(event);
+        emit contextMenu(contextMenuEvent->globalPos());
         return true;
     }
     return QObject::eventFilter(obj, event);
@@ -487,16 +488,14 @@ void ShareUserGroupWidget::activateShareeLineEdit()
     _ui->shareeLineEdit->setFocus();
 }
 
-ShareUserLine::ShareUserLine(AccountPtr account,
-                             QSharedPointer<UserGroupShare> share,
-                             SharePermissions maxSharingPermissions,
-                             bool isFile,
-                             QWidget *parent)
+ShareUserLine::ShareUserLine(AccountPtr account, QSharedPointer<UserGroupShare> share,
+    SharePermissions maxSharingPermissions, bool isFile, QWidget *parent)
     : QWidget(parent)
     , _ui(new Ui::ShareUserLine)
     , _account(account)
     , _share(share)
     , _isFile(isFile)
+    , _profilePageMenu(account, share->getShareWith()->shareWith())
 {
     Q_ASSERT(_share);
     _ui->setupUi(this);
@@ -641,24 +640,18 @@ ShareUserLine::ShareUserLine(AccountPtr account,
     }
 
     const auto avatarEventFilter = new AvatarEventFilter(_ui->avatar);
-    connect(avatarEventFilter, &AvatarEventFilter::clicked, this, &ShareUserLine::onAvatarClicked);
+    connect(avatarEventFilter, &AvatarEventFilter::contextMenu, this, &ShareUserLine::onAvatarContextMenu);
     _ui->avatar->installEventFilter(avatarEventFilter);
-
-
-    _ui->profilePageWidget->setProfileConnector(
-        std::make_unique<OcsProfileConnector>(share->account()), share->getShareWith()->shareWith());
-    _ui->profilePageWidget->setVisible(false);
 
     loadAvatar();
 
     customizeStyle();
 }
 
-void ShareUserLine::onAvatarClicked()
+void ShareUserLine::onAvatarContextMenu(const QPoint &globalPosition)
 {
     if (_share->getShareType() == Share::TypeUser) {
-        _ui->profilePageWidget->setVisible(!_ui->profilePageWidget->isVisible());
-        emit resizeRequested();
+        _profilePageMenu.exec(globalPosition);
     }
 }
 
