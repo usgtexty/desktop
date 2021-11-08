@@ -98,11 +98,11 @@ private slots:
         fakeFolder.setServerOverride([&](QNetworkAccessManager::Operation op, const QNetworkRequest &request, QIODevice *outgoingData) -> QNetworkReply * {
             if (op == QNetworkAccessManager::PutOperation) {
                 auto contentType = request.header(QNetworkRequest::ContentTypeHeader).toString();
-                if (contentType.startsWith(QStringLiteral("multipart/mixed; boundary="))) {
+                if (contentType.startsWith(QStringLiteral("multipart/related; boundary="))) {
                     return fakeFolder.forEachReplyPart(outgoingData, contentType, [&conflictMap] (const QMap<QString, QByteArray> &allHeaders) -> QNetworkReply * {
                         if (allHeaders.value("OC-Conflict") == "1") {
                             auto baseFileId = allHeaders.value("OC-ConflictBaseFileId");
-                            auto components = allHeaders.value("OC-Path").split('/');
+                            auto components = allHeaders.value("X-File-Path").split('/');
                             QString conflictFile = components.mid(components.size() - 2).join('/');
                             conflictMap[baseFileId] = conflictFile;
                             [&] {
@@ -165,11 +165,11 @@ private slots:
         fakeFolder.setServerOverride([&](QNetworkAccessManager::Operation op, const QNetworkRequest &request, QIODevice *outgoingData) -> QNetworkReply * {
             if (op == QNetworkAccessManager::PutOperation) {
                 auto contentType = request.header(QNetworkRequest::ContentTypeHeader).toString();
-                if (contentType.startsWith(QStringLiteral("multipart/mixed; boundary="))) {
+                if (contentType.startsWith(QStringLiteral("multipart/related; boundary="))) {
                     fakeFolder.forEachReplyPart(outgoingData, contentType, [&conflictMap] (const QMap<QString, QByteArray> &allHeaders) -> QNetworkReply * {
                         if (allHeaders.value("OC-Conflict") == "1") {
                             auto baseFileId = allHeaders.value("OC-ConflictBaseFileId");
-                            auto components = allHeaders.value("OC-Path").split('/');
+                            auto components = allHeaders.value("X-File-Path").split('/');
                             QString conflictFile = components.mid(components.size() - 2).join('/');
                             conflictMap[baseFileId] = conflictFile;
                             [&] {

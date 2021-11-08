@@ -48,9 +48,9 @@ private slots:
                 reqId = req.rawHeader("X-Request-ID");
             } else if (op == QNetworkAccessManager::PutOperation) {
                 auto contentType = req.header(QNetworkRequest::ContentTypeHeader).toString();
-                if (contentType.startsWith(QStringLiteral("multipart/mixed; boundary="))) {
+                if (contentType.startsWith(QStringLiteral("multipart/related; boundary="))) {
                     fakeFolder.forEachReplyPart(outgoingData, contentType, [req, testFileName, &reqId] (const QMap<QString, QByteArray> &allHeaders) -> QNetworkReply * {
-                        auto fileName = allHeaders[QStringLiteral("OC-Path")];
+                        auto fileName = allHeaders[QStringLiteral("X-File-Path")];
                         if (fileName.endsWith(testFileName)) {
                             reqId = req.rawHeader("X-Request-ID");
                         }

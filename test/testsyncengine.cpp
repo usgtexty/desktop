@@ -513,7 +513,7 @@ private slots:
         fakeFolder.setServerOverride([&](QNetworkAccessManager::Operation op, const QNetworkRequest &request, QIODevice *outgoingData) -> QNetworkReply * {
             if (op == QNetworkAccessManager::PutOperation) {
                 auto contentType = request.header(QNetworkRequest::ContentTypeHeader).toString();
-                if (contentType.startsWith(QStringLiteral("multipart/mixed; boundary="))) {
+                if (contentType.startsWith(QStringLiteral("multipart/related; boundary="))) {
                     return fakeFolder.forEachReplyPart(outgoingData, contentType, [&nPUT, &n507, remoteQuota, op, &request, &parent] (const QMap<QString, QByteArray> &allHeaders) -> QNetworkReply * {
                         nPUT++;
                         if (allHeaders.value("OC-Total-Length").toInt() > remoteQuota) {

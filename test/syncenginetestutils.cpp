@@ -436,7 +436,7 @@ QVector<FileInfo *> FakePutMultiFileReply::performMultiPart(FileInfo &remoteRoot
     QVector<FileInfo *> result;
 
     auto stringPutPayload = QString::fromUtf8(putPayload);
-    constexpr int boundaryPosition = sizeof("multipart/mixed; boundary=");
+    constexpr int boundaryPosition = sizeof("multipart/related; boundary=");
     const QString boundaryValue = QStringLiteral("--") + contentType.mid(boundaryPosition, contentType.length() - boundaryPosition - 1) + QStringLiteral("\r\n");
     auto stringPutPayloadRef = QString{stringPutPayload}.left(stringPutPayload.size() - 2 - boundaryValue.size());
     auto allParts = stringPutPayloadRef.split(boundaryValue, Qt::SkipEmptyParts);
@@ -450,7 +450,7 @@ QVector<FileInfo *> FakePutMultiFileReply::performMultiPart(FileInfo &remoteRoot
             auto headerParts = oneHeader.split(QStringLiteral(": "));
             allHeaders[headerParts.at(0)] = headerParts.at(1);
         }
-        auto fileName = allHeaders[QStringLiteral("OC-Path")];
+        auto fileName = allHeaders[QStringLiteral("X-File-Path")];
         Q_ASSERT(!fileName.isEmpty());
         FileInfo *fileInfo = remoteRootFileInfo.find(fileName);
         if (fileInfo) {
@@ -480,7 +480,7 @@ void FakePutMultiFileReply::respond()
     for(auto fileInfo : qAsConst(_allFileInfo)) {
         QJsonObject fileInfoReply;
         fileInfoReply.insert("OC-OperationStatus", fileInfo->operationStatus);
-        fileInfoReply.insert("OC-Path", fileInfo->path());
+        fileInfoReply.insert("X-File-Path", fileInfo->path());
         fileInfoReply.insert("OC-ETag", QLatin1String{fileInfo->etag});
         fileInfoReply.insert("ETag", QLatin1String{fileInfo->etag});
         fileInfoReply.insert("OC-FileID", QLatin1String{fileInfo->fileId});
@@ -925,7 +925,7 @@ QNetworkReply* FakeQNAM::forEachReplyPart(QIODevice *outgoingData,
     auto putPayload = outgoingData->peek(outgoingData->bytesAvailable());
     outgoingData->reset();
     auto stringPutPayload = QString::fromUtf8(putPayload);
-    constexpr int boundaryPosition = sizeof("multipart/mixed; boundary=");
+    constexpr int boundaryPosition = sizeof("multipart/related; boundary=");
     const QString boundaryValue = QStringLiteral("--") + contentType.mid(boundaryPosition, contentType.length() - boundaryPosition - 1) + QStringLiteral("\r\n");
     auto stringPutPayloadRef = QString{stringPutPayload}.left(stringPutPayload.size() - 2 - boundaryValue.size());
     auto allParts = stringPutPayloadRef.split(boundaryValue, Qt::SkipEmptyParts);
@@ -960,9 +960,9 @@ QNetworkReply *FakeQNAM::createRequest(QNetworkAccessManager::Operation op, cons
         }
     }
     if (!reply) {
-        if (contentType.startsWith(QStringLiteral("multipart/mixed; boundary="))) {
+        if (contentType.startsWith(QStringLiteral("multipart/related; boundary="))) {
             reply = forEachReplyPart(outgoingData, contentType, [this, op, newRequest] (const QMap<QString, QByteArray> &allHeaders) -> QNetworkReply* {
-                auto fileName = allHeaders[QStringLiteral("OC-Path")];
+                auto fileName = allHeaders[QStringLiteral("X-File-Path")];
                 return overrideReplyWithError(fileName, op, newRequest);
             });
         } else {
@@ -974,26 +974,26 @@ QNetworkReply *FakeQNAM::createRequest(QNetworkAccessManager::Operation op, cons
         FileInfo &info = isUpload ? _uploadFileInfo : _remoteRootFileInfo;
 
         auto verb = newRequest.attribute(QNetworkRequest::CustomVerbAttribute);
-        if (verb == QLatin1String("PROPFIND"))
+        if (verb == QLatin1String("PROPFIND")) {
             // Ignore outgoingData always returning somethign good enough, works for now.
             reply = new FakePropfindReply { info, op, newRequest, this };
-        else if (verb == QLatin1String("GET") || op == QNetworkAccessManager::GetOperation)
+        } else if (verb == QLatin1String("GET") || op == QNetworkAccessManager::GetOperation) {
             reply = new FakeGetReply { info, op, newRequest, this };
-        else if (verb == QLatin1String("PUT") || op == QNetworkAccessManager::PutOperation) {
-            if (contentType.startsWith(QStringLiteral("multipart/mixed; boundary="))) {
-                reply = new FakePutMultiFileReply { info, op, newRequest, contentType, outgoingData->readAll(), this };
-            } else {
-                reply = new FakePutReply { info, op, newRequest, outgoingData->readAll(), this };
-            }
-        } else if (verb == QLatin1String("MKCOL"))
+        } else if (verb == QLatin1String("PUT") || op == QNetworkAccessManager::PutOperation) {
+            reply = new FakePutReply { info, op, newRequest, outgoingData->readAll(), this };
+        } else if (verb == QLatin1String("MKCOL")) {
             reply = new FakeMkcolReply { info, op, newRequest, this };
-        else if (verb == QLatin1String("DELETE") || op == QNetworkAccessManager::DeleteOperation)
+        } else if (verb == QLatin1String("DELETE") || op == QNetworkAccessManager::DeleteOperation) {
             reply = new FakeDeleteReply { info, op, newRequest, this };
-        else if (verb == QLatin1String("MOVE") && !isUpload)
+        } else if (verb == QLatin1String("MOVE") && !isUpload) {
             reply = new FakeMoveReply { info, op, newRequest, this };
-        else if (verb == QLatin1String("MOVE") && isUpload)
+        } else if (verb == QLatin1String("MOVE") && isUpload) {
             reply = new FakeChunkMoveReply { info, _remoteRootFileInfo, op, newRequest, this };
-        else {
+        } else if (verb == QLatin1String("POST") || op == QNetworkAccessManager::PostOperation) {
+            if (contentType.startsWith(QStringLiteral("multipart/related; boundary="))) {
+                reply = new FakePutMultiFileReply { info, op, newRequest, contentType, outgoingData->readAll(), this };
+            }
+        } else {
             qDebug() << verb << outgoingData;
             Q_UNREACHABLE();
         }

@@ -97,6 +97,11 @@ bool BulkPropagatorJob::scheduleSelfOrChild()
         return false;
     }
 
+    {
+        auto bulkUploadUrl = Utility::concatUrlPath(propagator()->account()->url(), QStringLiteral("/remote.php/dav/bulk"));
+        qCInfo(lcBulkPropagatorJob()) << "going to" << bulkUploadUrl;
+    }
+
     _state = Running;
     for(int i = 0; i < 100 && !_items.empty(); ++i) {
         auto currentItem = _items.front();
@@ -169,8 +174,7 @@ void BulkPropagatorJob::doStartUpload(SyncFileItemPtr item,
 
     qint64 fileSize = fileToUpload._size;
     auto currentHeaders = headers(item);
-    currentHeaders[QByteArrayLiteral("OC-Total-Length")] = QByteArray::number(fileSize);
-    currentHeaders[QByteArrayLiteral("OC-Chunk-Size")] = QByteArray::number(fileSize);
+    currentHeaders[QByteArrayLiteral("Content-Length")] = QByteArray::number(fileSize);
 
     if (!item->_renameTarget.isEmpty() && item->_file != item->_renameTarget) {
         // Try to rename the file
@@ -190,7 +194,7 @@ void BulkPropagatorJob::doStartUpload(SyncFileItemPtr item,
     QString path = fileToUpload._file;
 
     qCInfo(lcBulkPropagatorJob) << propagator()->fullRemotePath(path) << "transmission checksum" << transmissionChecksumHeader;
-    currentHeaders[checkSumHeaderC] = transmissionChecksumHeader;
+    currentHeaders["X-File-MD5"] = transmissionChecksumHeader;
 
     const QString fileName = fileToUpload._path;
 
@@ -200,7 +204,7 @@ void BulkPropagatorJob::doStartUpload(SyncFileItemPtr item,
 
     _uploadFileParameters.push_back(std::move(newUploadFile));
 
-    if (_items.empty() && _checksumsJobs.empty()) {
+    if (_checksumsJobs.empty()) {
         triggerUpload();
     }
 }
@@ -226,11 +230,13 @@ void BulkPropagatorJob::triggerUpload()
             abortWithError(oneFile._item, SyncFileItem::SoftError, device->errorString());
             return;
         }
-        oneFile._headers["OC-Path"] = oneFile._remotePath.toUtf8();
+        oneFile._headers["X-File-Path"] = oneFile._remotePath.toUtf8();
         uploadParametersData.push_back({std::move(device), oneFile._headers});
     }
 
-    auto job = std::make_unique<PutMultiFileJob>(propagator()->account(), QUrl{}, std::move(uploadParametersData), this);
+    auto bulkUploadUrl = Utility::concatUrlPath(propagator()->account()->url(), QStringLiteral("/remote.php/dav/bulk"));
+    qCInfo(lcBulkPropagatorJob()) << "going to" << bulkUploadUrl;
+    auto job = std::make_unique<PutMultiFileJob>(propagator()->account(), bulkUploadUrl, std::move(uploadParametersData), this);
     connect(job.get(), &PutMultiFileJob::finishedSignal, this, &BulkPropagatorJob::slotPutFinished);
     connect(job.get(), &PutMultiFileJob::uploadProgress, this, &BulkPropagatorJob::slotUploadProgress);
     //connect(job.get(), &PutMultiFileJob::uploadProgress, device.get(), &UploadDevice::slotJobUploadProgress);
@@ -258,7 +264,7 @@ void BulkPropagatorJob::slotComputeContentChecksum(SyncFileItemPtr item,
     // probably temporary one.
     item->_modtime = FileSystem::getModTime(filePath);
 
-    const QByteArray checksumType = propagator()->account()->capabilities().preferredUploadChecksumType();
+    const QByteArray checksumType = "MD5" /*propagator()->account()->capabilities().preferredUploadChecksumType()*/;
 
     // Maybe the discovery already computed the checksum?
     // Should I compute the checksum of the original (item->_file)
@@ -309,7 +315,7 @@ void BulkPropagatorJob::slotComputeTransmissionChecksum(SyncFileItemPtr item,
     // Compute the transmission checksum.
     auto computeChecksum = std::make_unique<ComputeChecksum>(this);
     if (uploadChecksumEnabled()) {
-        computeChecksum->setChecksumType(propagator()->account()->capabilities().uploadChecksumType());
+        computeChecksum->setChecksumType("MD5" /*propagator()->account()->capabilities().uploadChecksumType()*/);
     } else {
         computeChecksum->setChecksumType(QByteArray());
     }
@@ -365,7 +371,7 @@ void BulkPropagatorJob::slotStartUpload(SyncFileItemPtr item,
         return slotOnErrorStartFolderUnlock(item, SyncFileItem::SoftError, tr("Local file changed during sync."));
     }
 
-    doStartUpload(item, fileToUpload, transmissionChecksumHeader);
+    doStartUpload(item, fileToUpload, transmissionChecksum);
 }
 
 void BulkPropagatorJob::slotOnErrorStartFolderUnlock(SyncFileItemPtr item,
@@ -407,7 +413,7 @@ void BulkPropagatorJob::slotPutFinished()
         for (const auto &oneReply : qAsConst(replyArray)) {
             auto replyObject = oneReply.toObject();
             qCDebug(lcBulkPropagatorJob()) << "searching for reply" << replyObject << oneFile._item->_file;
-            if (replyObject.value("OC-Path").toString() == oneFile._item->_file) {
+            if (replyObject.value("X-File-Path").toString() == oneFile._item->_file) {
                 fileReply = replyObject;
                 break;
             }
@@ -615,7 +621,7 @@ QMap<QByteArray, QByteArray> BulkPropagatorJob::headers(SyncFileItemPtr item) co
 {
     QMap<QByteArray, QByteArray> headers;
     headers[QByteArrayLiteral("Content-Type")] = QByteArrayLiteral("application/octet-stream");
-    headers[QByteArrayLiteral("X-OC-Mtime")] = QByteArray::number(qint64(item->_modtime));
+    headers[QByteArrayLiteral("X-File-Mtime")] = QByteArray::number(qint64(item->_modtime));
     if (qEnvironmentVariableIntValue("OWNCLOUD_LAZYOPS")) {
         headers[QByteArrayLiteral("OC-LazyOps")] = QByteArrayLiteral("true");
     }

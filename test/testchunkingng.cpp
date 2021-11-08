@@ -541,7 +541,7 @@ private slots:
             }
             if (!chunking && op == QNetworkAccessManager::PutOperation) {
                 auto contentType = request.header(QNetworkRequest::ContentTypeHeader).toString();
-                if (contentType.startsWith(QStringLiteral("multipart/mixed; boundary="))) {
+                if (contentType.startsWith(QStringLiteral("multipart/related; boundary="))) {
                     return fakeFolder.forEachReplyPart(outgoingData, contentType, [&checksumHeader, &responseDelay, &fakeFolder, &op, &request, &contentType, &outgoingData] (const QMap<QString, QByteArray> &allHeaders) -> QNetworkReply * {
                         checksumHeader = allHeaders.value("OC-Checksum");
                         return new DelayedReply<FakePutMultiFileReply>(responseDelay, fakeFolder.remoteModifier(), op, request, contentType, outgoingData->readAll(), &fakeFolder.syncEngine());

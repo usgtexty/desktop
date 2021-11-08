@@ -51,8 +51,8 @@ class OWNCLOUDSYNC_EXPORT PutMultiFileJob : public AbstractNetworkJob
 public:
     explicit PutMultiFileJob(AccountPtr account, const QUrl &url,
                              std::vector<OneUploadFileData> devices, QObject *parent = nullptr)
-        : AbstractNetworkJob(account, QString(), parent)
-        , _body(QHttpMultiPart::MixedType)
+        : AbstractNetworkJob(account, {}, parent)
+        , _body(QHttpMultiPart::RelatedType)
         , _devices(std::move(devices))
         , _url(url)
     {

@@ -28,22 +28,22 @@ void PutMultiFileJob::start()
     QNetworkRequest req;
 
     for(auto &oneDevice : _devices) {
-        qCInfo(lcPutMultiFileJob) << "PUT of" << oneDevice._headers;
+        qCInfo(lcPutMultiFileJob) << "PUT of" << oneDevice._headers << oneDevice._device.get();
 
         auto onePart = QHttpPart{};
+
         onePart.setBodyDevice(oneDevice._device.get());
 
         for (QMap<QByteArray, QByteArray>::const_iterator it = oneDevice._headers.begin(); it != oneDevice._headers.end(); ++it) {
             onePart.setRawHeader(it.key(), it.value());
-            if (it.key() == "OC-Total-Length" ||
-                    it.key() == "X-OC-Mtime" ||
-                    it.key() == "OC-Checksum" ||
-                    it.key() == "If-Match" ||
-                    it.key() == "OC-Chunk-Size" ||
+            if (it.key() == "Content-Length" ||
+                    it.key() == "X-File-Path" ||
+                    it.key() == "X-File-MD5" ||
+                    it.key() == "X-File-Mtime" ||
                     it.key() == "OC-Conflict" ||
                     it.key() == "OC-ConflictBaseFileId" ||
                     it.key() == "OC-ConflictInitialBasePath" ||
-                    it.key() == "OC-Path") {
+                    it.key() == "If-Match") {
                 req.setRawHeader(it.key(), it.value());
             } else {
                 qDebug() << it.key();
@@ -55,7 +55,7 @@ void PutMultiFileJob::start()
         _body.append(onePart);
     }
 
-    sendRequest("PUT", makeDavUrl({}), req, &_body);
+    sendRequest("POST", _url, req, &_body);
 
     if (reply()->error() != QNetworkReply::NoError) {
         qCWarning(lcPutMultiFileJob) << " Network error: " << reply()->errorString();

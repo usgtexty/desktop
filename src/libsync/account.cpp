@@ -367,6 +367,8 @@ QNetworkReply *Account::sendRawRequest(const QByteArray &verb, const QUrl &url, 
     req.setSslConfiguration(this->getOrCreateSslConfig());
     if (verb == "PUT") {
         return _am->put(req, data);
+    } else if (verb == "POST") {
+        return _am->post(req, data);
     }
     return _am->sendCustomRequest(req, verb, data);
 }
