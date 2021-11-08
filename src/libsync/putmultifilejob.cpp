@@ -36,18 +36,6 @@ void PutMultiFileJob::start()
 
         for (QMap<QByteArray, QByteArray>::const_iterator it = oneDevice._headers.begin(); it != oneDevice._headers.end(); ++it) {
             onePart.setRawHeader(it.key(), it.value());
-            if (it.key() == "Content-Length" ||
-                    it.key() == "X-File-Path" ||
-                    it.key() == "X-File-MD5" ||
-                    it.key() == "X-File-Mtime" ||
-                    it.key() == "OC-Conflict" ||
-                    it.key() == "OC-ConflictBaseFileId" ||
-                    it.key() == "OC-ConflictInitialBasePath" ||
-                    it.key() == "If-Match") {
-                req.setRawHeader(it.key(), it.value());
-            } else {
-                qDebug() << it.key();
-            }
         }
 
         req.setPriority(QNetworkRequest::LowPriority); // Long uploads must not block non-propagation jobs.

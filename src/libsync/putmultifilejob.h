@@ -17,6 +17,7 @@
 
 #include "abstractnetworkjob.h"
 
+#include "propagateupload.h"
 #include "account.h"
 
 #include <QLoggingCategory>
@@ -36,7 +37,7 @@ Q_DECLARE_LOGGING_CATEGORY(lcPutMultiFileJob)
 
 struct OneUploadFileData
 {
-    std::unique_ptr<QIODevice> _device;
+    std::unique_ptr<UploadDevice> _device;
     QMap<QByteArray, QByteArray> _headers;
 };
 

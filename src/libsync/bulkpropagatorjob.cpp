@@ -239,7 +239,9 @@ void BulkPropagatorJob::triggerUpload()
     auto job = std::make_unique<PutMultiFileJob>(propagator()->account(), bulkUploadUrl, std::move(uploadParametersData), this);
     connect(job.get(), &PutMultiFileJob::finishedSignal, this, &BulkPropagatorJob::slotPutFinished);
     connect(job.get(), &PutMultiFileJob::uploadProgress, this, &BulkPropagatorJob::slotUploadProgress);
-    //connect(job.get(), &PutMultiFileJob::uploadProgress, device.get(), &UploadDevice::slotJobUploadProgress);
+    for (auto &oneUpload : uploadParametersData) {
+        connect(job.get(), &PutMultiFileJob::uploadProgress, oneUpload._device.get(), &UploadDevice::slotJobUploadProgress);
+    }
     connect(job.get(), &QObject::destroyed, this, &BulkPropagatorJob::slotJobDestroyed);
     //adjustLastJobTimeout(job.get(), oneFile._fileSize);
     auto jobCopy = job.get();
