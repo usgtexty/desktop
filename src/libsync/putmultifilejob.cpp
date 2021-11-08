@@ -24,31 +24,36 @@ PutMultiFileJob::~PutMultiFileJob() = default;
 
 void PutMultiFileJob::start()
 {
-    qCInfo(lcPutMultiFileJob) << "PUT of" << path() << _headers;
+    qCInfo(lcPutMultiFileJob) << "Start PUT of multi file on" << path();
     QNetworkRequest req;
-    auto onePart = QHttpPart{};
-    onePart.setBodyDevice(_device);
 
-    for (QMap<QByteArray, QByteArray>::const_iterator it = _headers.begin(); it != _headers.end(); ++it) {
-        onePart.setRawHeader(it.key(), it.value());
-        if (it.key() == "OC-Total-Length" ||
-                it.key() == "X-OC-Mtime" ||
-                it.key() == "OC-Checksum" ||
-                it.key() == "If-Match" ||
-                it.key() == "OC-Chunk-Size" ||
-                it.key() == "OC-Conflict" ||
-                it.key() == "OC-ConflictBaseFileId" ||
-                it.key() == "OC-ConflictInitialBasePath") {
-            req.setRawHeader(it.key(), it.value());
-        } else {
-            qDebug() << it.key();
+    for(auto &oneDevice : _devices) {
+        qCInfo(lcPutMultiFileJob) << "PUT of" << oneDevice._headers;
+
+        auto onePart = QHttpPart{};
+        onePart.setBodyDevice(oneDevice._device.get());
+
+        for (QMap<QByteArray, QByteArray>::const_iterator it = oneDevice._headers.begin(); it != oneDevice._headers.end(); ++it) {
+            onePart.setRawHeader(it.key(), it.value());
+            if (it.key() == "OC-Total-Length" ||
+                    it.key() == "X-OC-Mtime" ||
+                    it.key() == "OC-Checksum" ||
+                    it.key() == "If-Match" ||
+                    it.key() == "OC-Chunk-Size" ||
+                    it.key() == "OC-Conflict" ||
+                    it.key() == "OC-ConflictBaseFileId" ||
+                    it.key() == "OC-ConflictInitialBasePath" ||
+                    it.key() == "OC-Path") {
+                req.setRawHeader(it.key(), it.value());
+            } else {
+                qDebug() << it.key();
+            }
         }
+
+        req.setPriority(QNetworkRequest::LowPriority); // Long uploads must not block non-propagation jobs.
+
+        _body.append(onePart);
     }
-    onePart.setRawHeader("OC-Path", path().toUtf8().mid(1));
-
-    req.setPriority(QNetworkRequest::LowPriority); // Long uploads must not block non-propagation jobs.
-
-    _body.append(onePart);
 
     sendRequest("PUT", makeDavUrl({}), req, &_body);
 
@@ -64,7 +69,9 @@ void PutMultiFileJob::start()
 
 bool PutMultiFileJob::finished()
 {
-    _device->close();
+    for(auto &oneDevice : _devices) {
+        oneDevice._device->close();
+    }
 
     qCInfo(lcPutMultiFileJob) << "PUT of" << reply()->request().url().toString() << path() << "FINISHED WITH STATUS"
                      << replyStatusString()

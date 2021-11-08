@@ -34,6 +34,12 @@ namespace OCC {
 
 Q_DECLARE_LOGGING_CATEGORY(lcPutMultiFileJob)
 
+struct OneUploadFileData
+{
+    std::unique_ptr<QIODevice> _device;
+    QMap<QByteArray, QByteArray> _headers;
+};
+
 /**
  * @brief The PutMultiFileJob class
  * @ingroup libsync
@@ -43,38 +49,22 @@ class OWNCLOUDSYNC_EXPORT PutMultiFileJob : public AbstractNetworkJob
     Q_OBJECT
 
 public:
-    // Takes ownership of the device
-    explicit PutMultiFileJob(AccountPtr account, const QString &path, std::unique_ptr<QIODevice> device,
-        const QMap<QByteArray, QByteArray> &headers, int chunk, QObject *parent = nullptr)
-        : AbstractNetworkJob(account, path, parent)
-        , _body(QHttpMultiPart::MixedType)
-        , _device(device.release())
-        , _headers(headers)
-        , _chunk(chunk)
-    {
-        _device->setParent(this);
-    }
-    explicit PutMultiFileJob(AccountPtr account, const QUrl &url, std::unique_ptr<QIODevice> device,
-        const QMap<QByteArray, QByteArray> &headers, int chunk, QObject *parent = nullptr)
+    explicit PutMultiFileJob(AccountPtr account, const QUrl &url,
+                             std::vector<OneUploadFileData> devices, QObject *parent = nullptr)
         : AbstractNetworkJob(account, QString(), parent)
         , _body(QHttpMultiPart::MixedType)
-        , _device(device.release())
-        , _headers(headers)
+        , _devices(std::move(devices))
         , _url(url)
-        , _chunk(chunk)
     {
-        _device->setParent(this);
+        for(auto &oneDevice : _devices) {
+            oneDevice._device->setParent(this);
+        }
     }
     ~PutMultiFileJob() override;
 
     void start() override;
 
     bool finished() override;
-
-    QIODevice *device()
-    {
-        return _device;
-    }
 
     QString errorString() const override
     {
@@ -92,13 +82,10 @@ signals:
 
 private:
     QHttpMultiPart _body;
-    QIODevice *_device;
-    QMap<QByteArray, QByteArray> _headers;
+    std::vector<OneUploadFileData> _devices;
     QString _errorString;
     QUrl _url;
     QElapsedTimer _requestTimer;
-    int _chunk;
-
 };
 
 }

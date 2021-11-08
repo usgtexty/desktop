@@ -92,8 +92,7 @@ private slots:
                                       SyncFileItem::Status status,
                                       const QString &errorString);
 
-    void slotPutFinished(SyncFileItemPtr item,
-                         UploadFileInfo fileToUpload);
+    void slotPutFinished();
 
     void slotUploadProgress(qint64, qint64) const;
 
@@ -110,8 +109,7 @@ private:
     void adjustLastJobTimeout(AbstractNetworkJob *job,
                               qint64 fileSize) const;
 
-    void finalize(SyncFileItemPtr item,
-                  UploadFileInfo fileToUpload);
+    void finalize();
 
     void done(SyncFileItemPtr item,
               SyncFileItem::Status status,

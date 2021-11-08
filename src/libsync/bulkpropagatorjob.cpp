@@ -207,6 +207,9 @@ void BulkPropagatorJob::doStartUpload(SyncFileItemPtr item,
 
 void BulkPropagatorJob::triggerUpload()
 {
+    auto uploadParametersData = std::vector<OneUploadFileData>{};
+    uploadParametersData.reserve(_uploadFileParameters.size());
+
     for(auto &oneFile : _uploadFileParameters) {
         // job takes ownership of device via a QScopedPointer. Job deletes itself when finishing
         auto device = std::make_unique<UploadDevice>(
@@ -223,19 +226,19 @@ void BulkPropagatorJob::triggerUpload()
             abortWithError(oneFile._item, SyncFileItem::SoftError, device->errorString());
             return;
         }
-
-        auto job = std::make_unique<PutMultiFileJob>(propagator()->account(), oneFile._remotePath, std::move(device), oneFile._headers, 0, this);
-        connect(job.get(), &PutMultiFileJob::finishedSignal, this, [this, &oneFile] () {
-            slotPutFinished(oneFile._item, oneFile._fileToUpload);
-        });
-        connect(job.get(), &PutMultiFileJob::uploadProgress, this, &BulkPropagatorJob::slotUploadProgress);
-        connect(job.get(), &PutMultiFileJob::uploadProgress, device.get(), &UploadDevice::slotJobUploadProgress);
-        connect(job.get(), &QObject::destroyed, this, &BulkPropagatorJob::slotJobDestroyed);
-        adjustLastJobTimeout(job.get(), oneFile._fileSize);
-        auto jobCopy = job.get();
-        _jobs.append(job.release());
-        jobCopy->start();
+        oneFile._headers["OC-Path"] = oneFile._remotePath.toUtf8();
+        uploadParametersData.push_back({std::move(device), oneFile._headers});
     }
+
+    auto job = std::make_unique<PutMultiFileJob>(propagator()->account(), QUrl{}, std::move(uploadParametersData), this);
+    connect(job.get(), &PutMultiFileJob::finishedSignal, this, &BulkPropagatorJob::slotPutFinished);
+    connect(job.get(), &PutMultiFileJob::uploadProgress, this, &BulkPropagatorJob::slotUploadProgress);
+    //connect(job.get(), &PutMultiFileJob::uploadProgress, device.get(), &UploadDevice::slotJobUploadProgress);
+    connect(job.get(), &QObject::destroyed, this, &BulkPropagatorJob::slotJobDestroyed);
+    //adjustLastJobTimeout(job.get(), oneFile._fileSize);
+    auto jobCopy = job.get();
+    _jobs.append(job.release());
+    jobCopy->start();
 }
 
 void BulkPropagatorJob::slotComputeContentChecksum(SyncFileItemPtr item,
@@ -373,93 +376,94 @@ void BulkPropagatorJob::slotOnErrorStartFolderUnlock(SyncFileItemPtr item,
     qCInfo(lcBulkPropagatorJob()) << status << errorString;
 }
 
-void BulkPropagatorJob::slotPutFinished(SyncFileItemPtr item,
-                                        UploadFileInfo fileToUpload)
+void BulkPropagatorJob::slotPutFinished()
 {
-    qCInfo(lcBulkPropagatorJob()) << item->_file;
-    auto *job = qobject_cast<PutMultiFileJob *>(sender());
-    ASSERT(job)
+    for(auto &oneFile : _uploadFileParameters) {
+        qCInfo(lcBulkPropagatorJob()) << oneFile._item->_file;
+        auto *job = qobject_cast<PutMultiFileJob *>(sender());
+        ASSERT(job)
 
-    bool finished = false;
+        bool finished = false;
 
-    slotJobDestroyed(job); // remove it from the _jobs list
+        slotJobDestroyed(job); // remove it from the _jobs list
 
-    item->_httpErrorCode = static_cast<quint16>(job->reply()->attribute(QNetworkRequest::HttpStatusCodeAttribute).toUInt());
-    item->_responseTimeStamp = job->responseTimestamp();
-    item->_requestId = job->requestId();
-    QNetworkReply::NetworkError err = job->reply()->error();
-    if (err != QNetworkReply::NoError) {
-        commonErrorHandling(item, fileToUpload, job);
-        return;
-    }
-
-    auto replyData = QByteArray{};
-    while(job->reply()->bytesAvailable()) {
-        replyData += job->reply()->readAll();
-    }
-
-    auto replyJson = QJsonDocument::fromJson(replyData);
-    auto replyArray = replyJson.array();
-    auto fileReply = QJsonObject{};
-    for (const auto &oneReply : qAsConst(replyArray)) {
-        auto replyObject = oneReply.toObject();
-        qCDebug(lcBulkPropagatorJob()) << "searching for reply" << replyObject << item->_file;
-        if (replyObject.value("OC-Path").toString() == item->_file) {
-            fileReply = replyObject;
-            break;
-        }
-    }
-
-    qCInfo(lcBulkPropagatorJob()) << "file headers" << fileReply;
-
-    // The server needs some time to process the request and provide us with a poll URL
-    if (item->_httpErrorCode == 202) {
-        QString path = QString::fromUtf8(getHeaderFromJsonReply(fileReply, "OC-JobStatus-Location"));
-        if (path.isEmpty()) {
-            done(item, SyncFileItem::NormalError, tr("Poll URL missing"));
+        oneFile._item->_httpErrorCode = static_cast<quint16>(job->reply()->attribute(QNetworkRequest::HttpStatusCodeAttribute).toUInt());
+        oneFile._item->_responseTimeStamp = job->responseTimestamp();
+        oneFile._item->_requestId = job->requestId();
+        QNetworkReply::NetworkError err = job->reply()->error();
+        if (err != QNetworkReply::NoError) {
+            commonErrorHandling(oneFile._item, oneFile._fileToUpload, job);
             return;
         }
-        startPollJob(item, fileToUpload, path);
-        return;
+
+        auto replyData = QByteArray{};
+        while(job->reply()->bytesAvailable()) {
+            replyData += job->reply()->readAll();
+        }
+
+        auto replyJson = QJsonDocument::fromJson(replyData);
+        auto replyArray = replyJson.array();
+        auto fileReply = QJsonObject{};
+        for (const auto &oneReply : qAsConst(replyArray)) {
+            auto replyObject = oneReply.toObject();
+            qCDebug(lcBulkPropagatorJob()) << "searching for reply" << replyObject << oneFile._item->_file;
+            if (replyObject.value("OC-Path").toString() == oneFile._item->_file) {
+                fileReply = replyObject;
+                break;
+            }
+        }
+
+        qCInfo(lcBulkPropagatorJob()) << "file headers" << fileReply;
+
+        // The server needs some time to process the request and provide us with a poll URL
+        if (oneFile._item->_httpErrorCode == 202) {
+            QString path = QString::fromUtf8(getHeaderFromJsonReply(fileReply, "OC-JobStatus-Location"));
+            if (path.isEmpty()) {
+                done(oneFile._item, SyncFileItem::NormalError, tr("Poll URL missing"));
+                return;
+            }
+            startPollJob(oneFile._item, oneFile._fileToUpload, path);
+            return;
+        }
+
+        // Check the file again post upload.
+        // Two cases must be considered separately: If the upload is finished,
+        // the file is on the server and has a changed ETag. In that case,
+        // the etag has to be properly updated in the client journal, and because
+        // of that we can bail out here with an error. But we can reschedule a
+        // sync ASAP.
+        // But if the upload is ongoing, because not all chunks were uploaded
+        // yet, the upload can be stopped and an error can be displayed, because
+        // the server hasn't registered the new file yet.
+        QByteArray etag = getEtagFromJsonReply(fileReply);
+        finished = etag.length() > 0;
+
+        const QString fullFilePath(propagator()->fullLocalPath(oneFile._item->_file));
+
+        // Check if the file still exists
+        if (!checkFileStillExists(oneFile._item, finished, fullFilePath)) {
+            return;
+        }
+
+        // Check whether the file changed since discovery. the file check here is the original and not the temprary.
+        if (!checkFileChanged(oneFile._item, finished, fullFilePath)) {
+            return;
+        }
+
+        // the file id should only be empty for new files up- or downloaded
+        computeFileId(oneFile._item, fileReply);
+
+        oneFile._item->_etag = etag;
+
+        if (getHeaderFromJsonReply(fileReply, "X-OC-MTime") != "accepted") {
+            // X-OC-MTime is supported since owncloud 5.0.   But not when chunking.
+            // Normally Owncloud 6 always puts X-OC-MTime
+            qCWarning(lcBulkPropagatorJob) << "Server does not support X-OC-MTime" << getHeaderFromJsonReply(fileReply, "X-OC-MTime");
+            // Well, the mtime was not set
+        }
     }
 
-    // Check the file again post upload.
-    // Two cases must be considered separately: If the upload is finished,
-    // the file is on the server and has a changed ETag. In that case,
-    // the etag has to be properly updated in the client journal, and because
-    // of that we can bail out here with an error. But we can reschedule a
-    // sync ASAP.
-    // But if the upload is ongoing, because not all chunks were uploaded
-    // yet, the upload can be stopped and an error can be displayed, because
-    // the server hasn't registered the new file yet.
-    QByteArray etag = getEtagFromJsonReply(fileReply);
-    finished = etag.length() > 0;
-
-    const QString fullFilePath(propagator()->fullLocalPath(item->_file));
-
-    // Check if the file still exists
-    if (!checkFileStillExists(item, finished, fullFilePath)) {
-        return;
-    }
-
-    // Check whether the file changed since discovery. the file check here is the original and not the temprary.
-    if (!checkFileChanged(item, finished, fullFilePath)) {
-        return;
-    }
-
-    // the file id should only be empty for new files up- or downloaded
-    computeFileId(item, fileReply);
-
-    item->_etag = etag;
-
-    if (getHeaderFromJsonReply(fileReply, "X-OC-MTime") != "accepted") {
-        // X-OC-MTime is supported since owncloud 5.0.   But not when chunking.
-        // Normally Owncloud 6 always puts X-OC-MTime
-        qCWarning(lcBulkPropagatorJob) << "Server does not support X-OC-MTime" << getHeaderFromJsonReply(fileReply, "X-OC-MTime");
-        // Well, the mtime was not set
-    }
-
-    finalize(item, fileToUpload);
+    finalize();
 }
 
 void BulkPropagatorJob::slotUploadProgress(qint64, qint64) const
@@ -485,41 +489,60 @@ void BulkPropagatorJob::adjustLastJobTimeout(AbstractNetworkJob *job, qint64 fil
                         static_cast<qint64>(30 * 60 * 1000)));
 }
 
-void BulkPropagatorJob::finalize(SyncFileItemPtr item,
-                                 UploadFileInfo fileToUpload)
+void BulkPropagatorJob::finalize()
 {
-    // Update the quota, if known
-    auto quotaIt = propagator()->_folderQuota.find(QFileInfo(item->_file).path());
-    if (quotaIt != propagator()->_folderQuota.end()) {
-        quotaIt.value() -= fileToUpload._size;
-    }
-
-    // Update the database entry
-    const auto result = propagator()->updateMetadata(*item);
-    if (!result) {
-        done(item, SyncFileItem::FatalError, tr("Error updating metadata: %1").arg(result.error()));
-        return;
-    } else if (*result == Vfs::ConvertToPlaceholderResult::Locked) {
-        done(item, SyncFileItem::SoftError, tr("The file %1 is currently in use").arg(item->_file));
-        return;
-    }
-
-    // Files that were new on the remote shouldn't have online-only pin state
-    // even if their parent folder is online-only.
-    if (item->_instruction == CSYNC_INSTRUCTION_NEW
-        || item->_instruction == CSYNC_INSTRUCTION_TYPE_CHANGE) {
-        auto &vfs = propagator()->syncOptions()._vfs;
-        const auto pin = vfs->pinState(item->_file);
-        if (pin && *pin == PinState::OnlineOnly && !vfs->setPinState(item->_file, PinState::Unspecified)) {
-            qCWarning(lcBulkPropagatorJob) << "Could not set pin state of" << item->_file << "to unspecified";
+    for(auto &oneFile : _uploadFileParameters) {
+        // Update the quota, if known
+        auto quotaIt = propagator()->_folderQuota.find(QFileInfo(oneFile._item->_file).path());
+        if (quotaIt != propagator()->_folderQuota.end()) {
+            quotaIt.value() -= oneFile._fileToUpload._size;
         }
+
+        // Update the database entry
+        const auto result = propagator()->updateMetadata(*oneFile._item);
+        if (!result) {
+            done(oneFile._item, SyncFileItem::FatalError, tr("Error updating metadata: %1").arg(result.error()));
+            return;
+        } else if (*result == Vfs::ConvertToPlaceholderResult::Locked) {
+            done(oneFile._item, SyncFileItem::SoftError, tr("The file %1 is currently in use").arg(oneFile._item->_file));
+            return;
+        }
+
+        // Files that were new on the remote shouldn't have online-only pin state
+        // even if their parent folder is online-only.
+        if (oneFile._item->_instruction == CSYNC_INSTRUCTION_NEW
+            || oneFile._item->_instruction == CSYNC_INSTRUCTION_TYPE_CHANGE) {
+            auto &vfs = propagator()->syncOptions()._vfs;
+            const auto pin = vfs->pinState(oneFile._item->_file);
+            if (pin && *pin == PinState::OnlineOnly && !vfs->setPinState(oneFile._item->_file, PinState::Unspecified)) {
+                qCWarning(lcBulkPropagatorJob) << "Could not set pin state of" << oneFile._item->_file << "to unspecified";
+            }
+        }
+
+        // Remove from the progress database:
+        propagator()->_journal->setUploadInfo(oneFile._item->_file, SyncJournalDb::UploadInfo());
+        propagator()->_journal->commit("upload file start");
+
+        done(oneFile._item, SyncFileItem::Success, {});
     }
 
-    // Remove from the progress database:
-    propagator()->_journal->setUploadInfo(item->_file, SyncJournalDb::UploadInfo());
-    propagator()->_journal->commit("upload file start");
+    if (_items.empty()) {
+        if (!_jobs.empty()) {
+            // just wait for the other job to finish.
+            return;
+        }
+        if (!_checksumsJobs.empty()) {
+            // just wait for the other job to finish.
+            return;
+        }
 
-    done(item, SyncFileItem::Success, {});
+        qCInfo(lcBulkPropagatorJob) << "final status" << _finalStatus;
+        emit finished(_finalStatus);
+        propagator()->scheduleNextJob();
+    } else {
+        qCInfo(lcBulkPropagatorJob) << "remaining upload tasks" << _items.size();
+        scheduleSelfOrChild();
+    }
 }
 
 void BulkPropagatorJob::done(SyncFileItemPtr item,
@@ -545,20 +568,6 @@ void BulkPropagatorJob::done(SyncFileItemPtr item,
     handleJobDoneErrors(item, status);
 
     emit propagator()->itemCompleted(item);
-
-    if (_items.empty()) {
-        if (!_jobs.empty()) {
-            // just wait for the other job to finish.
-            return;
-        }
-
-        qCInfo(lcBulkPropagatorJob) << "final status" << _finalStatus;
-        emit finished(_finalStatus);
-        propagator()->scheduleNextJob();
-    } else {
-        qCInfo(lcBulkPropagatorJob) << "remaining upload tasks" << _items.size();
-        scheduleSelfOrChild();
-    }
 }
 
 void BulkPropagatorJob::startPollJob(SyncFileItemPtr item,
@@ -599,7 +608,7 @@ void BulkPropagatorJob::slotPollFinished(UploadFileInfo fileToUpload)
         return;
     }
 
-    finalize(job->_item, fileToUpload);
+    finalize();
 }
 
 QMap<QByteArray, QByteArray> BulkPropagatorJob::headers(SyncFileItemPtr item) const
