@@ -367,7 +367,7 @@ QString Theme::helpUrl() const
 #ifdef APPLICATION_HELP_URL
     return QString::fromLatin1(APPLICATION_HELP_URL);
 #else
-    return QString::fromLatin1("https://docs.nextcloud.com/desktop/%1.%2/").arg(MIRALL_VERSION_MAJOR).arg(MIRALL_VERSION_MINOR);
+    return QString::fromLatin1("https://docs.bitnext.app/desktop/%1.%2/").arg(MIRALL_VERSION_MAJOR).arg(MIRALL_VERSION_MINOR);
 #endif
 }
 
@@ -508,29 +508,13 @@ QString Theme::about() const
     devString = tr("<p>%1 Desktop Client</p>")
               .arg(APPLICATION_NAME);
 
-    devString += tr("<p>Version %1. For more information please click <a href='%2'>here</a>.</p>")
-              .arg(QString::fromLatin1(MIRALL_STRINGIFY(MIRALL_VERSION)) + QString(" (%1)").arg(osName))
-              .arg(helpUrl());
-
-    devString += tr("<p><small>Using virtual files plugin: %1</small></p>")
-                     .arg(Vfs::modeToString(bestAvailableVfsMode()));
-    devString += QStringLiteral("<br>%1")
-              .arg(QSysInfo::productType() % QLatin1Char('-') % QSysInfo::kernelVersion());
-
     return devString;
 }
 
 QString Theme::aboutDetails() const
 {
     QString devString;
-    devString = tr("<p>Version %1. For more information please click <a href='%2'>here</a>.</p>")
-              .arg(MIRALL_VERSION_STRING)
-              .arg(helpUrl());
-
-    devString += tr("<p>This release was supplied by %1</p>")
-              .arg(APPLICATION_VENDOR);
-
-    devString += gitSHA1();
+    devString = "";
 
     return devString;
 }
