@@ -243,7 +243,7 @@
                  </size>
                 </property>
                 <property name="placeholderText">
-                 <string notr="true">https://try.nextcloud.com</string>
+                 <string notr="true">https://app.bitnext.app</string>
                 </property>
                </widget>
               </item>
