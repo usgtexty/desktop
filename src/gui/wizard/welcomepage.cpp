@@ -37,7 +37,7 @@ void WelcomePage::setupUi()
     setupSlideShow();
     setupLoginButton();
     setupCreateAccountButton();
-    setupHostYourOwnServerLabel();
+    // setupHostYourOwnServerLabel();
 }
 
 void WelcomePage::initializePage()
